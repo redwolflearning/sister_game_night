@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sister Tiles</title>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root{ --ink:#2b2118; --paper:#fff8ee; --card:#ffffff; --accent:#8a4b2a; --accent2:#2e7d32; --line:#e3d5c3; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Georgia,'Times New Roman',serif;background:var(--paper);color:var(--ink)}
+  header{background:var(--accent);color:#fff;padding:14px 18px;text-align:center}
+  header h1{margin:0;font-size:30px;letter-spacing:.5px}
+  header p{margin:4px 0 0;font-size:14px;opacity:.92}
+  main{max-width:1060px;margin:0 auto;padding:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(90,60,20,.08)}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .col{flex:1 1 300px}
+  h2{margin-top:0;font-size:21px} h3{margin:8px 0}
+  input[type=text]{width:100%;padding:11px;font-size:17px;border:1px solid #c9b896;border-radius:9px;margin:5px 0 10px;text-transform:none}
+  #joinCode{text-transform:uppercase}
+  button{background:var(--accent);color:#fff;border:0;border-radius:9px;padding:11px 18px;font-size:16px;cursor:pointer;margin:3px 2px}
+  button:hover{filter:brightness(1.1)} button:disabled{background:#b7a894;cursor:not-allowed}
+  button.secondary{background:#efe6d8;color:var(--ink);border:1px solid var(--line)}
+  button.green{background:var(--accent2)}
+  .notice{background:#fff3cd;border:1px solid #e6cf7a;border-radius:9px;padding:10px 12px;font-size:15px}
+  .error{background:#fdecea;border:1px solid #e5a09a;border-radius:9px;padding:10px 12px;color:#7a1d12;display:none;margin-bottom:12px}
+  .bigcode{font-size:34px;font-weight:bold;letter-spacing:6px;text-align:center;background:#efe6d8;border-radius:10px;padding:10px}
+  .hidden{display:none !important}
+  /* Board */
+  #boardWrap{overflow:auto;padding:8px;background:#f3ead9;border-radius:12px;border:1px solid var(--line)}
+  #board{display:grid;gap:4px;width:max-content;margin:0 auto}
+  .cell{width:46px;height:46px;border-radius:8px;background:rgba(255,255,255,.55);border:1px dashed #d8c8ab;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .cell.filled{background:#fff;border:1px solid var(--line);cursor:default}
+  .cell.staged{background:#fff8d6;border:2px solid #f9a825;cursor:pointer}
+  .cell.start{background:#e8f3e8;border:1px dashed var(--accent2);font-size:11px;color:var(--accent2);text-align:center}
+  .tile{width:42px;height:42px;border-radius:8px;background:#fffdf7;border:2px solid #d9c9a8;display:flex;align-items:center;justify-content:center;font-size:27px;line-height:1;user-select:none}
+  .cell .tile{width:42px;height:42px;border:0;background:transparent}
+  /* Hand */
+  #hand{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .handTile{padding:0;background:transparent;border:0;cursor:pointer;border-radius:10px}
+  .handTile .tile{width:56px;height:56px;font-size:36px;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+  .handTile.selected .tile{outline:3px solid #f9a825;background:#fff8d6}
+  .handTile.swapSelected .tile{outline:3px solid #1565c0;background:#e3f0fd}
+  .score{display:flex;gap:8px;flex-wrap:wrap}
+  .scoreBox{background:#efe6d8;border-radius:9px;padding:8px 12px;font-size:15px}
+  .scoreBox.turn{outline:3px solid var(--accent2);font-weight:bold}
+  #log,#chatLog{max-height:190px;overflow:auto;font-size:14px;background:#fbf6ec;border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+  #log div,#chatLog div{margin:3px 0}
+  .turnBanner{font-size:19px;font-weight:bold;text-align:center;padding:9px;border-radius:9px;background:#e8f3e8;margin-bottom:10px}
+  .turnBanner.wait{background:#efe6d8}
+  @media (max-width:600px){ .cell{width:40px;height:40px} .cell .tile{width:38px;height:38px;font-size:23px} header h1{font-size:25px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>&#10022; Sister Tiles &#10022;</h1>
+  <p>Play together from wherever you are &mdash; one sister hosts, everyone else joins with the room code.</p>
+</header>
+<main>
+  <div id="errorBox" class="error"></div>
+
+  <!-- HOME -->
+  <section id="homeScreen">
+    <div class="row">
+      <div class="card col">
+        <h2>Start a game (Host)</h2>
+        <p>The host is Player 1 and the referee: her browser holds the tile bag and keeps score.</p>
+        <label>Your name <input type="text" id="hostName" maxlength="20" placeholder="e.g. Trisha"></label>
+        <button id="createBtn" class="green">Create a room</button>
+        <p class="notice"><strong>Important:</strong> the host must keep her tab open for the whole game. If she closes it, the game ends for everyone.</p>
+      </div>
+      <div class="card col">
+        <h2>Join a game</h2>
+        <label>Your name <input type="text" id="guestName" maxlength="20" placeholder="Your name"></label>
+        <label>Room code <input type="text" id="joinCode" maxlength="5" placeholder="ABCDE"></label>
+        <button id="joinBtn">Join room</button>
+        <p>Ask the host for her 5-letter room code, type it in, and join.</p>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Quick rules</h2>
+      <p>Build lines of tiles that are all the <strong>same color with different shapes</strong>, or all the <strong>same shape with different colors</strong>. No duplicates in a line, and a line can have at most 6 tiles. All tiles you play in one turn must be in a single row or column and touch the board. You score the length of every line you create or extend, and completing a line of 6 is a <strong>Full Six, +6 bonus</strong>!</p>
+    </div>
+  </section>
+
+  <!-- LOBBY -->
+  <section id="lobbyScreen" class="hidden">
+    <div class="card">
+      <h2>Game lobby</h2>
+      <p style="text-align:center;margin-bottom:6px">Room code &mdash; share this with your sisters:</p>
+      <div class="bigcode" id="lobbyCode"></div>
+      <h3>Players joined</h3>
+      <ul id="lobbyPlayers"></ul>
+      <div id="hostLobbyControls">
+        <button id="startBtn" class="green" disabled>Start game</button>
+        <p id="startHint">Waiting for at least 1 more player to join (2&ndash;4 players total)…</p>
+      </div>
+      <p id="guestLobbyMsg" class="hidden">Waiting for the host to start the game…</p>
+    </div>
+  </section>
+
+  <!-- GAME -->
+  <section id="gameScreen" class="hidden">
+    <div class="card">
+      <div id="turnBanner" class="turnBanner"></div>
+      <div class="score" id="scores"></div>
+      <p style="margin:8px 0 0">Tiles left in the bag: <strong id="bagCount">108</strong> &nbsp;|&nbsp; Room: <strong id="gameCode"></strong></p>
+    </div>
+    <div class="card">
+      <h2>Board</h2>
+      <div id="boardWrap"><div id="board"></div></div>
+      <p style="font-size:14px">Tap one of your tiles below, then tap a board square to place it. Tap a yellow staged tile to take it back.</p>
+    </div>
+    <div class="card">
+      <h3>Your tiles <span id="swapModeLabel" style="font-size:13px"></span></h3>
+      <div id="hand"></div>
+      <div>
+        <button id="endTurnBtn" class="green">End turn</button>
+        <button id="undoBtn" class="secondary">Undo staged tiles</button>
+        <button id="swapToggleBtn" class="secondary">Swap tiles instead…</button>
+        <button id="swapBtn" class="hidden">Swap selected &amp; end turn</button>
+      </div>
+      <p id="actionMsg" style="font-size:14px;min-height:18px"></p>
+    </div>
+    <div class="row">
+      <div class="card col">
+        <h3>Move log</h3>
+        <div id="log"></div>
+      </div>
+      <div class="card col">
+        <h3>Chat</h3>
+        <div id="chatLog"></div>
+        <div class="row" style="margin-top:8px">
+          <input type="text" id="chatInput" maxlength="300" placeholder="Say something…" style="flex:1">
+          <button id="chatSendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+/* ============ Shared constants ============ */
+var SHAPES = [
+  { name: "Circle",  sym: "●" },
+  { name: "Square",  sym: "■" },
+  { name: "Diamond", sym: "◆" },
+  { name: "Star",    sym: "✶" },
+  { name: "Clover",  sym: "♣" },
+  { name: "Cross",   sym: "✕" }
+];
+var COLORS = [
+  { name: "Red",    hex: "#d32f2f" },
+  { name: "Orange", hex: "#ef6c00" },
+  { name: "Yellow", hex: "#e6a100" },
+  { name: "Green",  hex: "#2e7d32" },
+  { name: "Blue",   hex: "#1565c0" },
+  { name: "Purple", hex: "#6a1b9a" }
+];
+var PEER_PREFIX = "sister-tiles-v1-";
+var CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+
+function tileLabel(t){ return COLORS[t.color].name + " " + SHAPES[t.shape].name; }
+function shuffle(a){ for (var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t; } return a; }
+
+/* ============ Pure validation (host-authoritative; also used in local tests) ============ */
+// VALIDATION_START
+function cellKey(x, y){ return x + "," + y; }
+
+function getSegment(board, placed, sx, sy, dx, dy){
+  // Walk back to the start of the contiguous line through (sx,sy).
+  var x = sx, y = sy;
+  while (board[cellKey(x-dx, y-dy)] || placed[cellKey(x-dx, y-dy)]){ x -= dx; y -= dy; }
+  var cells = [];
+  var cx = x, cy = y;
+  while (board[cellKey(cx, cy)] || placed[cellKey(cx, cy)]){
+    cells.push({ x: cx, y: cy, tile: placed[cellKey(cx, cy)] || board[cellKey(cx, cy)] });
+    cx += dx; cy += dy;
+  }
+  return { startX: x, startY: y, cells: cells };
+}
+
+function validatePlacements(board, placements){
+  // board: { "x,y": tile }; placements: [{tile, x, y}]  -> {ok, error} or {ok, score}
+  if (!placements || placements.length === 0) return { ok: false, error: "Place at least one tile." };
+  var placed = {}, i, p, k;
+  for (i = 0; i < placements.length; i++){
+    p = placements[i]; k = cellKey(p.x, p.y);
+    if (placed[k]) return { ok: false, error: "Two tiles cannot go in the same square." };
+    if (board[k]) return { ok: false, error: "That square is already taken." };
+    placed[k] = p.tile;
+  }
+  var sameRow = placements.every(function(q){ return q.y === placements[0].y; });
+  var sameCol = placements.every(function(q){ return q.x === placements[0].x; });
+  if (!sameRow && !sameCol) return { ok: false, error: "All tiles in one turn must be in a single row or a single column." };
+  // No gaps along the main line.
+  if (sameRow){
+    var y0 = placements[0].y, xs = placements.map(function(q){ return q.x; });
+    for (var x = Math.min.apply(null, xs); x <= Math.max.apply(null, xs); x++){
+      if (!board[cellKey(x, y0)] && !placed[cellKey(x, y0)]) return { ok: false, error: "There cannot be a gap in your line." };
+    }
+  } else {
+    var x0 = placements[0].x, ys = placements.map(function(q){ return q.y; });
+    for (var yy = Math.min.apply(null, ys); yy <= Math.max.apply(null, ys); yy++){
+      if (!board[cellKey(x0, yy)] && !placed[cellKey(x0, yy)]) return { ok: false, error: "There cannot be a gap in your line." };
+    }
+  }
+  var boardEmpty = Object.keys(board).length === 0;
+  if (!boardEmpty){
+    var connected = false;
+    for (i = 0; i < placements.length; i++){
+      p = placements[i];
+      var nbrs = [[1,0],[-1,0],[0,1],[0,-1]];
+      for (var n = 0; n < 4; n++){
+        if (board[cellKey(p.x + nbrs[n][0], p.y + nbrs[n][1])]) connected = true;
+      }
+      // A gap filled by an existing board tile also connects (covered by adjacency to it), but check the main line too:
+      if (sameRow && board[cellKey(p.x, p.y)]) connected = true;
+    }
+    // Also connected if the main line's span includes an existing tile (gap-fill case):
+    if (!connected && sameRow){
+      var xs2 = placements.map(function(q){ return q.x; });
+      for (var gx = Math.min.apply(null, xs2); gx <= Math.max.apply(null, xs2); gx++) if (board[cellKey(gx, y0)]) connected = true;
+    }
+    if (!connected && sameCol){
+      var ys2 = placements.map(function(q){ return q.y; });
+      for (var gy = Math.min.apply(null, ys2); gy <= Math.max.apply(null, ys2); gy++) if (board[cellKey(x0, gy)]) connected = true;
+    }
+    if (!connected) return { ok: false, error: "Your tiles must touch the tiles already on the board." };
+  }
+  // Validate and score every distinct touched line.
+  var seenLines = {}, score = 0, bonus = 0;
+  var dirs = [[1,0],[0,1]];
+  for (i = 0; i < placements.length; i++){
+    p = placements[i];
+    for (var d = 0; d < 2; d++){
+      var seg = getSegment(board, placed, p.x, p.y, dirs[d][0], dirs[d][1]);
+      var lk = (d === 0 ? "r" : "c") + seg.startX + "," + seg.startY;
+      if (seenLines[lk]) continue;
+      seenLines[lk] = seg;
+      if (seg.cells.length > 6) return { ok: false, error: "A line can have at most 6 tiles." };
+      if (seg.cells.length >= 2){
+        var combos = {}, allSameColor = true, allSameShape = true;
+        for (var c = 0; c < seg.cells.length; c++){
+          var t = seg.cells[c].tile, ck = t.shape + "-" + t.color;
+          if (combos[ck]) return { ok: false, error: "A line cannot contain the same tile twice (" + tileLabel(t) + ")." };
+          combos[ck] = true;
+          if (t.color !== seg.cells[0].tile.color) allSameColor = false;
+          if (t.shape !== seg.cells[0].tile.shape) allSameShape = false;
+        }
+        if (!allSameColor && !allSameShape) return { ok: false, error: "Each line must be all one color (different shapes) or all one shape (different colors)." };
+        if (allSameColor){
+          var shapesSeen = {}; for (var s1 = 0; s1 < seg.cells.length; s1++){ if (shapesSeen[seg.cells[s1].tile.shape]) return { ok: false, error: "Shapes cannot repeat in a same-color line." }; shapesSeen[seg.cells[s1].tile.shape] = true; }
+        }
+        if (allSameShape){
+          var colorsSeen = {}; for (var s2 = 0; s2 < seg.cells.length; s2++){ if (colorsSeen[seg.cells[s2].tile.color]) return { ok: false, error: "Colors cannot repeat in a same-shape line." }; colorsSeen[seg.cells[s2].tile.color] = true; }
+        }
+        score += seg.cells.length;
+        if (seg.cells.length === 6) bonus += 6;
+      }
+    }
+  }
+  if (boardEmpty && placements.length === 1) score = 1;
+  else if (boardEmpty) score = placements.length;
+  if (score === 0) score = 1; // single tile joining a line is always covered above; safety net
+  return { ok: true, score: score + bonus, fullSixBonus: bonus };
+}
+// VALIDATION_END
+
+/* ============ UI helpers ============ */
+function $(id){ return document.getElementById(id); }
+function showError(msg){ var e = $("errorBox"); e.textContent = msg; e.style.display = "block"; window.scrollTo(0,0); }
+function clearError(){ $("errorBox").style.display = "none"; }
+function actionMsg(msg){ $("actionMsg").textContent = msg; }
+function tileHTML(t){
+  return '<span class="tile" style="color:' + COLORS[t.color].hex + '" title="' + tileLabel(t) + '">' + SHAPES[t.shape].sym + '</span>';
+}
+
+/* ============ Client state (both host and guest) ============ */
+var myId = null, myName = "", isHost = false, roomCode = "";
+var peer = null, hostConn = null; // guest -> host connection
+var pub = null;                   // latest public state
+var myHand = [];                  // only ever MY tiles
+var staged = {};                  // tileId -> {x, y, tile}
+var selectedTileId = null;
+var swapMode = false, swapSelected = {};
+
+function isMyTurn(){ return pub && pub.started && !pub.finished && pub.turnPlayerId === myId; }
+
+/* ============ HOST: authoritative game state ============ */
+var G = null; // {bag, board, players:[{id,name,hand,score,conn}], turnIdx, started, finished, log[], chat[], winnerText}
+var conns = {}; // playerId -> conn (guests only)
+
+function buildBag(){
+  var bag = [], id = 0;
+  for (var s = 0; s < 6; s++) for (var c = 0; c < 6; c++) for (var n = 0; n < 3; n++) bag.push({ id: "t" + (id++), shape: s, color: c });
+  return shuffle(bag);
+}
+function publicState(){
+  return {
+    started: G.started, finished: G.finished, winnerText: G.winnerText || "",
+    board: Object.keys(G.board).map(function(k){ var p = k.split(","); return { x: +p[0], y: +p[1], tile: G.board[k] }; }),
+    bagCount: G.bag.length,
+    turnPlayerId: G.started ? G.players[G.turnIdx].id : null,
+    players: G.players.map(function(pl){ return { id: pl.id, name: pl.name, score: pl.score, tileCount: pl.hand.length }; }),
+    log: G.log.slice(-60), chat: G.chat.slice(-60)
+  };
+}
+function hostSendTo(player){
+  var payload = { type: "state", pub: publicState(), hand: player.hand, yourId: player.id };
+  if (player.id === myId){ onState(payload); }
+  else if (conns[player.id]){ try { conns[player.id].send(payload); } catch(e){} }
+}
+function hostBroadcast(){ G.players.forEach(hostSendTo); }
+function hostLog(msg){ G.log.push(msg); }
+
+function hostStartGame(){
+  if (G.players.length < 2) return;
+  G.bag = buildBag(); G.board = {}; G.started = true; G.finished = false; G.turnIdx = 0;
+  G.players.forEach(function(pl){ pl.score = 0; pl.hand = G.bag.splice(0, 6); });
+  hostLog("Game started! " + G.players[0].name + " goes first.");
+  hostBroadcast();
+}
+function hostAdvanceTurn(){ G.turnIdx = (G.turnIdx + 1) % G.players.length; }
+function hostFinishIfNeeded(player, playedCount){
+  // handled inside play logic
+}
+function hostDoPlay(playerId, placementsReq){
+  var player = null, i;
+  for (i = 0; i < G.players.length; i++) if (G.players[i].id === playerId) player = G.players[i];
+  if (!player) return;
+  function fail(msg){ if (playerId === myId) actionMsg("Not allowed: " + msg); else if (conns[playerId]) conns[playerId].send({ type: "actionError", message: msg }); }
+  if (!G.started || G.finished) return fail("The game is not running.");
+  if (G.players[G.turnIdx].id !== playerId) return fail("It is not your turn.");
+  if (!placementsReq || !placementsReq.length) return fail("Place at least one tile.");
+  var placements = [], usedIds = {};
+  for (i = 0; i < placementsReq.length; i++){
+    var req = placementsReq[i], tile = null;
+    for (var h = 0; h < player.hand.length; h++) if (player.hand[h].id === req.tileId) tile = player.hand[h];
+    if (!tile) return fail("That tile is not in your hand.");
+    if (usedIds[tile.id]) return fail("Same tile used twice.");
+    usedIds[tile.id] = true;
+    placements.push({ tile: tile, x: req.x, y: req.y });
+  }
+  var v = validatePlacements(G.board, placements);
+  if (!v.ok) return fail(v.error);
+  placements.forEach(function(p){ G.board[cellKey(p.x, p.y)] = p.tile; });
+  player.hand = player.hand.filter(function(t){ return !usedIds[t.id]; });
+  player.score += v.score;
+  hostLog(player.name + " played " + placements.length + " tile" + (placements.length > 1 ? "s" : "") + " (" + placements.map(function(p){ return tileLabel(p.tile); }).join(", ") + ") for " + v.score + " points" + (v.fullSixBonus ? " — FULL SIX!" : "") + ".");
+  var playedOut = false;
+  while (player.hand.length < 6 && G.bag.length > 0) player.hand.push(G.bag.pop());
+  if (G.bag.length === 0 && player.hand.length === 0){ player.score += 6; playedOut = true; }
+  if (playedOut){
+    G.finished = true;
+    var best = Math.max.apply(null, G.players.map(function(pl){ return pl.score; }));
+    var winners = G.players.filter(function(pl){ return pl.score === best; }).map(function(pl){ return pl.name; });
+    G.winnerText = winners.join(" and ") + " win" + (winners.length > 1 ? "" : "s") + " with " + best + " points! (" + player.name + " gets +6 for playing the last tile.)";
+    hostLog("Game over! " + G.winnerText);
+  } else {
+    hostAdvanceTurn();
+  }
+  hostBroadcast();
+}
+function hostDoSwap(playerId, tileIds){
+  var player = null, i;
+  for (i = 0; i < G.players.length; i++) if (G.players[i].id === playerId) player = G.players[i];
+  if (!player) return;
+  function fail(msg){ if (playerId === myId) actionMsg("Not allowed: " + msg); else if (conns[playerId]) conns[playerId].send({ type: "actionError", message: msg }); }
+  if (!G.started || G.finished) return fail("The game is not running.");
+  if (G.players[G.turnIdx].id !== playerId) return fail("It is not your turn.");
+  if (!tileIds || !tileIds.length) return fail("Choose at least one tile to swap.");
+  if (G.bag.length === 0) return fail("The bag is empty, no swaps left.");
+  var swapping = player.hand.filter(function(t){ return tileIds.indexOf(t.id) >= 0; });
+  if (swapping.length !== tileIds.length) return fail("That tile is not in your hand.");
+  player.hand = player.hand.filter(function(t){ return tileIds.indexOf(t.id) < 0; });
+  var drawn = G.bag.splice(0, Math.min(swapping.length, G.bag.length));
+  player.hand = player.hand.concat(drawn);
+  G.bag = shuffle(G.bag.concat(swapping));
+  hostLog(player.name + " swapped " + swapping.length + " tile" + (swapping.length > 1 ? "s" : "") + ".");
+  hostAdvanceTurn();
+  hostBroadcast();
+}
+function hostDoChat(playerId, text){
+  var name = playerId;
+  G.players.forEach(function(pl){ if (pl.id === playerId) name = pl.name; });
+  G.chat.push(name + ": " + text);
+  hostBroadcast();
+}
+
+/* ============ Networking: host ============ */
+function makeRoomCode(){ var s = ""; for (var i = 0; i < 5; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; return s; }
+
+function createRoom(){
+  clearError();
+  myName = $("hostName").value.trim() || "Host";
+  roomCode = makeRoomCode();
+  isHost = true;
+  peer = new Peer(PEER_PREFIX + roomCode.toLowerCase());
+  peer.on("open", function(id){
+    myId = "host";
+    G = { bag: [], board: {}, players: [{ id: "host", name: myName, hand: [], score: 0 }], turnIdx: 0, started: false, finished: false, log: [], chat: [], winnerText: "" };
+    $("homeScreen").classList.add("hidden");
+    $("lobbyScreen").classList.remove("hidden");
+    $("lobbyCode").textContent = roomCode;
+    renderLobby();
+  });
+  peer.on("connection", function(conn){
+    conn.on("data", function(data){ hostOnGuestData(conn, data); });
+    conn.on("close", function(){ hostOnGuestLeave(conn); });
+  });
+  peer.on("error", function(err){
+    if (err.type === "unavailable-id") showError("That room code was just taken. Please try creating the room again.");
+    else showError("Connection problem (" + err.type + "). Please check your internet and try again.");
+  });
+}
+function hostOnGuestData(conn, data){
+  if (!data || !data.type) return;
+  if (data.type === "join"){
+    if (G.started){ conn.send({ type: "joinError", message: "This game has already started. Ask the host to finish it and start a new room." }); return; }
+    if (G.players.length >= 4){ conn.send({ type: "joinError", message: "This room is full (4 players)." }); return; }
+    var pid = "p" + Math.random().toString(36).slice(2, 9);
+    var name = (data.name || "Player").slice(0, 20);
+    G.players.push({ id: pid, name: name, hand: [], score: 0 });
+    conns[pid] = conn;
+    conn.__playerId = pid;
+    hostLog(name + " joined the room.");
+    renderLobby();
+    // Send the new guest the current (lobby) state, and refresh everyone.
+    hostBroadcast();
+  }
+  else if (data.type === "play"){ if (conn.__playerId) hostDoPlay(conn.__playerId, data.placements); }
+  else if (data.type === "swap"){ if (conn.__playerId) hostDoSwap(conn.__playerId, data.tileIds); }
+  else if (data.type === "chat"){ if (conn.__playerId) hostDoChat(conn.__playerId, String(data.text || "").slice(0, 300)); }
+}
+function hostOnGuestLeave(conn){
+  var pid = conn.__playerId;
+  if (!pid) return;
+  var name = pid;
+  G.players.forEach(function(pl){ if (pl.id === pid) name = pl.name; });
+  delete conns[pid];
+  if (!G.started){
+    G.players = G.players.filter(function(pl){ return pl.id !== pid; });
+    renderLobby();
+  } else {
+    hostLog(name + " disconnected. Her tiles stay in the game; she can rejoin only in a new game.");
+    hostBroadcast();
+  }
+}
+
+/* ============ Networking: guest ============ */
+function joinRoom(){
+  clearError();
+  myName = $("guestName").value.trim() || "Player";
+  roomCode = $("joinCode").value.trim().toUpperCase();
+  if (roomCode.length !== 5){ showError("Please enter the 5-letter room code the host gave you."); return; }
+  isHost = false;
+  peer = new Peer();
+  peer.on("open", function(){
+    hostConn = peer.connect(PEER_PREFIX + roomCode.toLowerCase(), { reliable: true });
+    hostConn.on("open", function(){ hostConn.send({ type: "join", name: myName }); });
+    hostConn.on("data", function(data){ guestOnHostData(data); });
+    hostConn.on("close", function(){ showError("The host closed the game (her tab was closed or she left). The game has ended."); });
+    hostConn.on("error", function(){ showError("Connection to the host was lost."); });
+  });
+  peer.on("error", function(err){
+    if (err.type === "peer-unavailable") showError("Room not found. Check the room code — and make sure the host has created the room and is still on her lobby screen.");
+    else showError("Connection problem (" + err.type + "). Please check your internet and try again.");
+  });
+}
+function guestOnHostData(data){
+  if (!data || !data.type) return;
+  if (data.type === "state") onState(data);
+  else if (data.type === "joinError") showError(data.message);
+  else if (data.type === "actionError") actionMsg("Not allowed: " + data.message);
+}
+
+/* ============ Shared: receiving state ============ */
+function onState(payload){
+  pub = payload.pub;
+  myHand = payload.hand || [];
+  if (payload.yourId) myId = payload.yourId;
+  staged = {}; selectedTileId = null; swapSelected = {}; swapMode = false;
+  if (!pub.started){
+    $("lobbyScreen").classList.remove("hidden");
+    $("homeScreen").classList.add("hidden");
+    $("gameScreen").classList.add("hidden");
+    $("lobbyCode").textContent = roomCode;
+    renderLobby();
+  } else {
+    $("lobbyScreen").classList.add("hidden");
+    $("homeScreen").classList.add("hidden");
+    $("gameScreen").classList.remove("hidden");
+    renderGame();
+  }
+}
+function renderLobby(){
+  var players = isHost && G ? G.players.map(function(p){ return { name: p.name }; }) : (pub ? pub.players : []);
+  $("lobbyPlayers").innerHTML = players.map(function(p){ return "<li>" + escapeHtml(p.name) + "</li>"; }).join("");
+  if (isHost){
+    $("hostLobbyControls").classList.remove("hidden");
+    $("guestLobbyMsg").classList.add("hidden");
+    var can = players.length >= 2;
+    $("startBtn").disabled = !can;
+    $("startHint").textContent = can ? "Ready! " + players.length + " players in the room." : "Waiting for at least 1 more player to join (2–4 players total)…";
+  } else {
+    $("hostLobbyControls").classList.add("hidden");
+    $("guestLobbyMsg").classList.remove("hidden");
+  }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, function(c){ return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+
+/* ============ Rendering the game ============ */
+function boardMap(){
+  var m = {};
+  (pub.board || []).forEach(function(c){ m[cellKey(c.x, c.y)] = c.tile; });
+  return m;
+}
+function renderGame(){
+  $("gameCode").textContent = roomCode;
+  $("bagCount").textContent = pub.bagCount;
+  var turnPlayer = null;
+  pub.players.forEach(function(p){ if (p.id === pub.turnPlayerId) turnPlayer = p; });
+  var banner = $("turnBanner");
+  if (pub.finished){ banner.textContent = "🏆 " + (pub.winnerText || "Game over!"); banner.className = "turnBanner"; }
+  else if (isMyTurn()){ banner.textContent = "Your turn, " + myName + "!"; banner.className = "turnBanner"; }
+  else { banner.textContent = "Waiting for " + (turnPlayer ? turnPlayer.name : "…") + " to play…"; banner.className = "turnBanner wait"; }
+  $("scores").innerHTML = pub.players.map(function(p){
+    return '<span class="scoreBox' + (p.id === pub.turnPlayerId && !pub.finished ? " turn" : "") + '">' + escapeHtml(p.name) + ": <strong>" + p.score + "</strong> pts · " + p.tileCount + " tiles</span>";
+  }).join("");
+  renderBoard();
+  renderHand();
+  $("log").innerHTML = pub.log.map(function(l){ return "<div>" + escapeHtml(l) + "</div>"; }).join("");
+  $("log").scrollTop = $("log").scrollHeight;
+  $("chatLog").innerHTML = pub.chat.map(function(l){ return "<div>" + escapeHtml(l) + "</div>"; }).join("");
+  $("chatLog").scrollTop = $("chatLog").scrollHeight;
+  var mine = isMyTurn();
+  $("endTurnBtn").disabled = !mine;
+  $("undoBtn").disabled = !mine;
+  $("swapToggleBtn").disabled = !mine;
+  $("swapBtn").disabled = !mine;
+}
+function renderBoard(){
+  var m = boardMap();
+  var stagedCells = {};
+  Object.keys(staged).forEach(function(tid){ var s = staged[tid]; stagedCells[cellKey(s.x, s.y)] = s.tile; });
+  var allKeys = Object.keys(m).concat(Object.keys(stagedCells));
+  var minX = 0, maxX = 0, minY = 0, maxY = 0;
+  if (allKeys.length){
+    minX = 999; minY = 999; maxX = -999; maxY = -999;
+    allKeys.forEach(function(k){ var p = k.split(","); var x = +p[0], y = +p[1]; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; });
+  }
+  minX -= 1; minY -= 1; maxX += 1; maxY += 1;
+  var cols = maxX - minX + 1;
+  var boardEl = $("board");
+  boardEl.style.gridTemplateColumns = "repeat(" + cols + ", auto)";
+  var html = "";
+  for (var y = minY; y <= maxY; y++){
+    for (var x = minX; x <= maxX; x++){
+      var k = cellKey(x, y);
+      if (m[k]) html += '<div class="cell filled">' + tileHTML(m[k]) + '</div>';
+      else if (stagedCells[k]) html += '<div class="cell staged" data-x="' + x + '" data-y="' + y + '" data-staged="1">' + tileHTML(stagedCells[k]) + '</div>';
+      else if (allKeys.length === 0 && x === 0 && y === 0) html += '<div class="cell start" data-x="0" data-y="0">Start here</div>';
+      else html += '<div class="cell" data-x="' + x + '" data-y="' + y + '"></div>';
+    }
+  }
+  boardEl.innerHTML = html;
+  Array.prototype.forEach.call(boardEl.querySelectorAll(".cell[data-x]"), function(el){
+    el.addEventListener("click", function(){ onCellClick(+el.getAttribute("data-x"), +el.getAttribute("data-y"), el.getAttribute("data-staged") === "1"); });
+  });
+}
+function renderHand(){
+  var stagedIds = {};
+  Object.keys(staged).forEach(function(tid){ stagedIds[tid] = true; });
+  $("hand").innerHTML = myHand.filter(function(t){ return !stagedIds[t.id]; }).map(function(t){
+    var cls = "handTile";
+    if (swapMode && swapSelected[t.id]) cls += " swapSelected";
+    else if (!swapMode && selectedTileId === t.id) cls += " selected";
+    return '<button class="' + cls + '" data-tid="' + t.id + '">' + tileHTML(t) + '</button>';
+  }).join("") || "<em>No tiles</em>";
+  Array.prototype.forEach.call($("hand").querySelectorAll(".handTile"), function(el){
+    el.addEventListener("click", function(){ onHandClick(el.getAttribute("data-tid")); });
+  });
+  $("swapModeLabel").textContent = swapMode ? "— swap mode: tap tiles to choose them, then “Swap selected”" : "";
+  $("swapBtn").classList.toggle("hidden", !swapMode);
+  $("endTurnBtn").classList.toggle("hidden", swapMode);
+}
+
+/* ============ Playing (guest staging + host local) ============ */
+function onHandClick(tid){
+  if (!isMyTurn()){ actionMsg("It's not your turn yet."); return; }
+  if (swapMode){ if (swapSelected[tid]) delete swapSelected[tid]; else swapSelected[tid] = true; renderHand(); return; }
+  selectedTileId = (selectedTileId === tid) ? null : tid;
+  renderHand();
+}
+function onCellClick(x, y, wasStaged){
+  if (!isMyTurn()){ actionMsg("It's not your turn yet."); return; }
+  if (wasStaged){
+    Object.keys(staged).forEach(function(tid){ if (staged[tid].x === x && staged[tid].y === y) delete staged[tid]; });
+    renderBoard(); renderHand(); return;
+  }
+  if (swapMode){ actionMsg("You are in swap mode. Turn swap mode off to place tiles."); return; }
+  if (!selectedTileId){ actionMsg("Tap one of your tiles first, then tap a square."); return; }
+  var tile = null;
+  myHand.forEach(function(t){ if (t.id === selectedTileId) tile = t; });
+  if (!tile) return;
+  staged[tile.id] = { x: x, y: y, tile: tile };
+  selectedTileId = null;
+  renderBoard(); renderHand();
+}
+function sendOrHost(payload){
+  if (isHost){
+    if (payload.type === "play") hostDoPlay(myId, payload.placements);
+    else if (payload.type === "swap") hostDoSwap(myId, payload.tileIds);
+    else if (payload.type === "chat") hostDoChat(myId, payload.text);
+  } else if (hostConn && hostConn.open){
+    hostConn.send(payload);
+  } else {
+    showError("You are not connected to the host.");
+  }
+}
+function endTurn(){
+  if (!isMyTurn()) return;
+  var placements = Object.keys(staged).map(function(tid){ return { tileId: tid, x: staged[tid].x, y: staged[tid].y }; });
+  if (!placements.length){ actionMsg("Place at least one tile, or swap instead."); return; }
+  // Local pre-check for instant feedback (host still re-validates authoritatively).
+  var m = boardMap();
+  var local = placements.map(function(p){ var t = null; myHand.forEach(function(h){ if (h.id === p.tileId) t = h; }); return { tile: t, x: p.x, y: p.y }; });
+  var v = validatePlacements(m, local);
+  if (!v.ok){ actionMsg("That move isn't allowed: " + v.error); return; }
+  sendOrHost({ type: "play", placements: placements });
+  if (!isHost) actionMsg("Move sent to the host…");
+}
+function doSwap(){
+  var ids = Object.keys(swapSelected);
+  if (!ids.length){ actionMsg("Tap the tiles you want to swap first."); return; }
+  sendOrHost({ type: "swap", tileIds: ids });
+  if (!isHost) actionMsg("Swap sent to the host…");
+}
+function sendChat(){
+  var inp = $("chatInput"), text = inp.value.trim();
+  if (!text) return;
+  inp.value = "";
+  if (isHost || pub){ sendOrHost({ type: "chat", text: text }); }
+}
+
+/* ============ Wire up buttons ============ */
+$("createBtn").addEventListener("click", createRoom);
+$("joinBtn").addEventListener("click", joinRoom);
+$("startBtn").addEventListener("click", function(){ if (isHost && G) hostStartGame(); });
+$("endTurnBtn").addEventListener("click", endTurn);
+$("undoBtn").addEventListener("click", function(){ staged = {}; selectedTileId = null; renderBoard(); renderHand(); });
+$("swapToggleBtn").addEventListener("click", function(){
+  swapMode = !swapMode; swapSelected = {};
+  if (swapMode){ staged = {}; selectedTileId = null; renderBoard(); }
+  renderHand();
+});
+$("swapBtn").addEventListener("click", doSwap);
+$("chatSendBtn").addEventListener("click", sendChat);
+$("chatInput").addEventListener("keydown", function(e){ if (e.key === "Enter") sendChat(); });
+window.addEventListener("beforeunload", function(){ if (peer) try { peer.destroy(); } catch(e){} });
+</script>
+</body>
+</html>
