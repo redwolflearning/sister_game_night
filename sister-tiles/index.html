@@ -49,6 +49,22 @@
   #log div,#chatLog div{margin:3px 0}
   .turnBanner{font-size:19px;font-weight:bold;text-align:center;padding:9px;border-radius:9px;background:#e8f3e8;margin-bottom:10px}
   .turnBanner.wait{background:#efe6d8}
+  /* Your-turn announcement (banner state toggled by announceTurnIfNeeded) */
+  #turnBanner{border:2px solid var(--line)}
+  .turnBanner.myTurn{background:#1b5e20;color:#fff;border:3px solid #f9a825;font-size:25px;padding:14px;box-shadow:0 3px 12px rgba(27,94,32,.4)}
+  @keyframes turnPulse{0%{transform:scale(1)}30%{transform:scale(1.03)}100%{transform:scale(1)}}
+  .turnBanner.turnPulse{animation:turnPulse .6s ease-in-out 2}
+  /* Game layout: board+hand main column, scoreboard/chat/log sidebar */
+  .gameLayout{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+  .mainCol{min-width:0}
+  .sideCol{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto}
+  .sideCol .card:last-child{margin-bottom:0}
+  @media (max-width:900px){
+    .gameLayout{display:flex;flex-direction:column}
+    .mainCol,.sideCol{display:contents}
+    .sideCol{position:static;max-height:none;overflow:visible}
+    #boardCard{order:1} #handCard{order:2} #chatCard{order:3} #scoresCard{order:4} #logCard{order:5}
+  }
   @media (max-width:600px){ .cell{width:40px;height:40px} .cell .tile{width:38px;height:38px;font-size:23px} header h1{font-size:25px} }
 </style>
 </head>
@@ -102,40 +118,44 @@
 
   <!-- GAME -->
   <section id="gameScreen" class="hidden">
-    <div class="card">
-      <div id="turnBanner" class="turnBanner"></div>
-      <div class="score" id="scores"></div>
-      <p style="margin:8px 0 0">Tiles left in the bag: <strong id="bagCount">108</strong> &nbsp;|&nbsp; Room: <strong id="gameCode"></strong></p>
-    </div>
-    <div class="card">
-      <h2>Board</h2>
-      <div id="boardWrap"><div id="board"></div></div>
-      <p style="font-size:14px">Tap one of your tiles below, then tap a board square to place it. Tap a yellow staged tile to take it back.</p>
-    </div>
-    <div class="card">
-      <h3>Your tiles <span id="swapModeLabel" style="font-size:13px"></span></h3>
-      <div id="hand"></div>
-      <div>
-        <button id="endTurnBtn" class="green">End turn</button>
-        <button id="undoBtn" class="secondary">Undo staged tiles</button>
-        <button id="swapToggleBtn" class="secondary">Swap tiles instead…</button>
-        <button id="swapBtn" class="hidden">Swap selected &amp; end turn</button>
-      </div>
-      <p id="actionMsg" style="font-size:14px;min-height:18px"></p>
-    </div>
-    <div class="row">
-      <div class="card col">
-        <h3>Move log</h3>
-        <div id="log"></div>
-      </div>
-      <div class="card col">
-        <h3>Chat</h3>
-        <div id="chatLog"></div>
-        <div class="row" style="margin-top:8px">
-          <input type="text" id="chatInput" maxlength="300" placeholder="Say something…" style="flex:1">
-          <button id="chatSendBtn">Send</button>
+    <div id="turnBanner" class="turnBanner"></div>
+    <div class="gameLayout">
+      <div class="mainCol">
+        <div class="card" id="boardCard">
+          <h2>Board</h2>
+          <div id="boardWrap"><div id="board"></div></div>
+          <p style="font-size:14px">Tap one of your tiles below, then tap a board square to place it. Tap a yellow staged tile to take it back.</p>
+        </div>
+        <div class="card" id="handCard">
+          <h3>Your tiles <span id="swapModeLabel" style="font-size:13px"></span></h3>
+          <div id="hand"></div>
+          <div>
+            <button id="endTurnBtn" class="green">End turn</button>
+            <button id="undoBtn" class="secondary">Undo staged tiles</button>
+            <button id="swapToggleBtn" class="secondary">Swap tiles instead…</button>
+            <button id="swapBtn" class="hidden">Swap selected &amp; end turn</button>
+          </div>
+          <p id="actionMsg" style="font-size:14px;min-height:18px"></p>
         </div>
       </div>
+      <aside class="sideCol">
+        <div class="card" id="scoresCard">
+          <div class="score" id="scores"></div>
+          <p style="margin:8px 0 0">Tiles left in the bag: <strong id="bagCount">108</strong> &nbsp;|&nbsp; Room: <strong id="gameCode"></strong></p>
+        </div>
+        <div class="card" id="chatCard">
+          <h3>Chat</h3>
+          <div id="chatLog"></div>
+          <div class="row" style="margin-top:8px">
+            <input type="text" id="chatInput" maxlength="300" placeholder="Say something…" style="flex:1">
+            <button id="chatSendBtn">Send</button>
+          </div>
+        </div>
+        <div class="card" id="logCard">
+          <h3>Move log</h3>
+          <div id="log"></div>
+        </div>
+      </aside>
     </div>
   </section>
 </main>
@@ -288,6 +308,50 @@ var selectedTileId = null;
 var swapMode = false, swapSelected = {};
 
 function isMyTurn(){ return pub && pub.started && !pub.finished && pub.turnPlayerId === myId; }
+
+/* ============ Your-turn announcement (fires once per turn change) ============ */
+var wasMyTurn = false;
+var turnChimeCtx = null;
+function playTurnChime(){
+  try {
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!turnChimeCtx) turnChimeCtx = new AC();
+    if (turnChimeCtx.state === "suspended") turnChimeCtx.resume();
+    var notes = [659.25, 880]; // E5, A5 — two soft notes, under a second total
+    for (var i = 0; i < notes.length; i++){
+      var t0 = turnChimeCtx.currentTime + i * 0.18;
+      var osc = turnChimeCtx.createOscillator();
+      var gain = turnChimeCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = notes[i];
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(0.12, t0 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.35);
+      osc.connect(gain);
+      gain.connect(turnChimeCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.4);
+    }
+  } catch(e){ /* audio is a nicety; any failure stays silent */ }
+}
+function announceTurnIfNeeded(){
+  var mine = !!(pub && pub.started && !pub.finished && isMyTurn());
+  var banner = $("turnBanner");
+  if (banner){ if (mine) banner.classList.add("myTurn"); else banner.classList.remove("myTurn"); }
+  document.title = mine ? "Your turn! — Sister Tiles" : "Sister Tiles";
+  if (mine && !wasMyTurn){
+    playTurnChime();
+    try { if (navigator.vibrate) navigator.vibrate(200); } catch(e){}
+    if (banner){
+      banner.classList.remove("turnPulse");
+      void banner.offsetWidth; // restart the pulse animation
+      banner.classList.add("turnPulse");
+      setTimeout(function(){ var b = $("turnBanner"); if (b) b.classList.remove("turnPulse"); }, 1300);
+    }
+  }
+  wasMyTurn = mine;
+}
 
 /* ============ HOST: authoritative game state ============ */
 var G = null; // {bag, board, players:[{id,name,hand,score,conn}], turnIdx, started, finished, log[], chat[], winnerText}
@@ -525,7 +589,7 @@ function renderGame(){
   pub.players.forEach(function(p){ if (p.id === pub.turnPlayerId) turnPlayer = p; });
   var banner = $("turnBanner");
   if (pub.finished){ banner.textContent = "🏆 " + (pub.winnerText || "Game over!"); banner.className = "turnBanner"; }
-  else if (isMyTurn()){ banner.textContent = "Your turn, " + myName + "!"; banner.className = "turnBanner"; }
+  else if (isMyTurn()){ banner.textContent = "It's your turn, " + myName + "!"; banner.className = "turnBanner"; }
   else { banner.textContent = "Waiting for " + (turnPlayer ? turnPlayer.name : "…") + " to play…"; banner.className = "turnBanner wait"; }
   $("scores").innerHTML = pub.players.map(function(p){
     return '<span class="scoreBox' + (p.id === pub.turnPlayerId && !pub.finished ? " turn" : "") + '">' + escapeHtml(p.name) + ": <strong>" + p.score + "</strong> pts · " + p.tileCount + " tiles</span>";
@@ -541,6 +605,7 @@ function renderGame(){
   $("undoBtn").disabled = !mine;
   $("swapToggleBtn").disabled = !mine;
   $("swapBtn").disabled = !mine;
+  announceTurnIfNeeded();
 }
 function renderBoard(){
   var m = boardMap();
