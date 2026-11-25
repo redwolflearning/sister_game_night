@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Our Recipes</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, system-ui, "Segoe UI", sans-serif; background:#fffaf3; color:#2b2118; }
+  header { background:#7a2e1d; color:#fff; padding:20px 16px 16px; position:sticky; top:0; z-index:10; box-shadow:0 2px 8px rgba(0,0,0,.2); }
+  header h1 { margin:0 0 4px; font-size:28px; }
+  header p { margin:0 0 14px; opacity:.9; font-size:15px; }
+  .searchrow { display:flex; gap:10px; flex-wrap:wrap; }
+  #search { flex:1 1 220px; padding:14px 16px; font-size:18px; border:none; border-radius:12px; }
+  #wakeBtn { padding:14px 16px; font-size:16px; font-weight:700; border:2px solid #fff; border-radius:12px; background:transparent; color:#fff; cursor:pointer; }
+  #wakeBtn.on { background:#ffc53d; color:#2b2118; border-color:#ffc53d; }
+  #wakeNote { font-size:13px; margin-top:8px; opacity:.9; min-height:16px; }
+  main { max-width:860px; margin:0 auto; padding:18px 14px 60px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; }
+  .card { background:#fff; border:1px solid #eadfce; border-radius:16px; padding:18px; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.06); text-align:left; width:100%; font:inherit; color:inherit; }
+  .card:hover, .card:focus { outline:3px solid #ffc53d; }
+  .card h2 { margin:0 0 6px; font-size:21px; }
+  .card .meta { color:#7a6a58; font-size:14px; margin:0 0 8px; }
+  .tag { display:inline-block; background:#fdeeda; color:#7a2e1d; border-radius:999px; padding:3px 10px; font-size:13px; font-weight:600; margin-right:6px; }
+  #empty { display:none; text-align:center; color:#7a6a58; padding:30px 10px; font-size:17px; }
+  #recipeView { display:none; background:#fff; border:1px solid #eadfce; border-radius:16px; padding:22px 20px 28px; }
+  #recipeView h2 { margin:4px 0 6px; font-size:28px; }
+  #recipeView .meta { color:#7a6a58; margin:0 0 16px; }
+  #recipeView h3 { margin:22px 0 8px; font-size:20px; color:#7a2e1d; }
+  #recipeView li { margin:7px 0; font-size:17px; line-height:1.45; }
+  #recipeView ol li { margin:11px 0; }
+  .backbtn { background:none; border:none; color:#7a2e1d; font-size:17px; font-weight:700; cursor:pointer; padding:6px 0; }
+  .wakebig { display:block; width:100%; margin:14px 0 4px; padding:15px; font-size:17px; font-weight:700; border-radius:12px; border:2px solid #7a2e1d; background:#fff; color:#7a2e1d; cursor:pointer; }
+  .wakebig.on { background:#ffc53d; border-color:#ffc53d; color:#2b2118; }
+  .source { font-size:14px; color:#7a6a58; margin-top:20px; }
+  .source a { color:#7a2e1d; }
+  footer { text-align:center; color:#a08b6f; font-size:13px; padding:20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🍳 Our Recipes</h1>
+  <p>Simple cards, no ads, no stories. Just the recipe.</p>
+  <div class="searchrow">
+    <input id="search" type="search" placeholder="Search recipes or ingredients…" aria-label="Search recipes">
+    <button id="wakeBtn" type="button" aria-pressed="false">☀️ Keep screen awake: OFF</button>
+  </div>
+  <div id="wakeNote"></div>
+</header>
+<main>
+  <p style="margin:0 0 14px"><a href="../" style="color:#7a2e1d;font-weight:700;text-decoration:none">← Sister Game Night home</a></p>
+  <div id="listView">
+    <div class="grid" id="grid"></div>
+    <p id="empty">No recipes match that search yet.</p>
+  </div>
+  <div id="recipeView"></div>
+</main>
+<footer>Our family recipe box</footer>
+
+<script>
+const RECIPES = [
+  {
+    id: "chocolate-lasagna",
+    title: "Chocolate Lasagna",
+    category: "Dessert",
+    meta: "No-bake • 9x13 pan • Serves 12 • Prep 35 min • Chill 4 hours (or 1 hour freezer)",
+    ingredients: [
+      "36 Oreo cookies, regular (not Double Stuf)",
+      "6 Tbsp butter, melted",
+      "8 oz cream cheese, softened",
+      "1/4 cup granulated sugar",
+      "3 1/4 cups cold milk, plus 2 Tbsp, divided",
+      "12 oz tub Cool Whip, divided",
+      "2 packages (3.9 oz each) chocolate instant pudding mix",
+      "1/2 cup mini chocolate chips"
+    ],
+    steps: [
+      "Crust: Crush Oreos to fine crumbs in a food processor. Mix in melted butter with a fork. Press evenly into the bottom of a 9x13 dish. Refrigerate while you make the next layer.",
+      "Cream cheese layer: Beat cream cheese until fluffy. Beat in 2 Tbsp milk and the sugar. Fold in 1 1/4 cups Cool Whip. Spread over crust. Chill 10 minutes.",
+      "Pudding layer: Whisk pudding mix with 3 1/4 cups cold milk until it starts to thicken. Spread over cream cheese layer. Chill 10 minutes.",
+      "Top: Spread the remaining Cool Whip over the pudding. Sprinkle with mini chocolate chips (more than 1/2 cup is fine).",
+      "Chill: Refrigerate 4 hours, or freeze 1 hour, before slicing."
+    ],
+    notes: ["No food processor? Put cookies in a zip bag and crush with a rolling pin.", "Can be made a day ahead and kept refrigerated."],
+    source: "The Kitchen Snob",
+    sourceUrl: "https://www.thekitchensnob.com/chocolate-lasagna/"
+  },
+  {
+    id: "pumpkin-spice-cookies",
+    title: "Pumpkin Spice Cookies (Cake-Like)",
+    category: "Dessert",
+    meta: "Makes 6 jumbo or 12 regular • Bake 350°F • Soft, puffy, cake-like, not chewy",
+    ingredients: [
+      "2 3/4 cups (330g) all-purpose flour",
+      "2 1/2 tsp pumpkin pie spice",
+      "1 tsp baking soda",
+      "1 tsp baking powder",
+      "1/2 tsp salt",
+      "1/2 cup (1 stick) salted butter, softened",
+      "1 cup packed dark brown sugar",
+      "1/4 cup granulated sugar",
+      "1 cup pure pumpkin puree (not pie filling), do NOT blot",
+      "2 Tbsp honey",
+      "1 large egg, room temperature",
+      "2 tsp vanilla extract",
+      "Topping: 3/4 cup white chocolate chips, melted for drizzling"
+    ],
+    steps: [
+      "Heat oven to 350°F. Line baking sheets with parchment.",
+      "Whisk flour, pumpkin pie spice, baking soda, baking powder, and salt in a medium bowl.",
+      "In a large bowl, cream butter, dark brown sugar, and granulated sugar about 2 minutes, until light and fluffy.",
+      "Beat in pumpkin, honey, egg, and vanilla until combined.",
+      "Add dry ingredients and mix just until no flour streaks remain. Do not overmix. Dough will be very soft and sticky.",
+      "Chill 10 minutes at most, just to make scooping easier.",
+      "Jumbos: scoop 1/2-cup portions, mound tall, do not flatten, only 3 per sheet. Regular: 3 Tbsp per cookie, mounded.",
+      "Bake jumbos 16 to 18 minutes, regular 12 to 14 minutes, until puffed and tops look set. Centers should still be soft.",
+      "Cool on the pan 15 minutes.",
+      "Melt white chocolate chips in 20-second bursts, stirring in between. Drizzle over cooled cookies and let set."
+    ],
+    notes: ["Store in an airtight container in the refrigerator for about 1 week. Let come to room temperature before eating.", "Less sweet: cut granulated sugar to 2 Tbsp and go light on the drizzle."],
+    source: "Our copycat of the Wicked Cookies pumpkin spice cookie",
+    sourceUrl: ""
+  },
+  {
+    id: "protein-mini-muffins",
+    title: "Zeke's Protein Mini Muffins",
+    category: "Snack",
+    meta: "Makes about 41 minis • Bake 400°F for 13 to 15 min • About 8g protein per 4 minis",
+    ingredients: [
+      "1 box Krusteaz chocolate chip muffin mix",
+      "1 full scoop vanilla whey protein powder",
+      "1/2 cup milk (instead of water)",
+      "1/2 cup vanilla yogurt",
+      "4 eggs",
+      "1/2 cup oil",
+      "Pinch of sugar, for the tops"
+    ],
+    steps: [
+      "Heat oven to 400°F. Grease or line mini muffin tins.",
+      "Stir the protein powder into the dry muffin mix first.",
+      "Add milk, yogurt, eggs, and oil. Mix just until combined.",
+      "Fill mini muffin cups. Sprinkle a pinch of sugar on top of each.",
+      "Bake 13 to 15 minutes, checking at 13, until set and lightly golden.",
+      "Cool a few minutes before popping them out."
+    ],
+    notes: ["Zeke loves these. The extra egg is what makes a full scoop of protein powder work."],
+    source: "Our kitchen",
+    sourceUrl: ""
+  }
+];
+
+// ---------- Search / list ----------
+const grid = document.getElementById('grid');
+const emptyMsg = document.getElementById('empty');
+const searchBox = document.getElementById('search');
+
+function renderList(filter) {
+  const q = (filter || '').trim().toLowerCase();
+  const matches = RECIPES.filter(r =>
+    !q || r.title.toLowerCase().includes(q) || r.category.toLowerCase().includes(q) ||
+    r.ingredients.some(i => i.toLowerCase().includes(q))
+  );
+  grid.innerHTML = matches.map(r =>
+    '<button class="card" type="button" data-id="' + r.id + '">' +
+    '<h2>' + r.title + '</h2>' +
+    '<p class="meta">' + r.meta + '</p>' +
+    '<span class="tag">' + r.category + '</span>' +
+    '</button>'
+  ).join('');
+  emptyMsg.style.display = matches.length ? 'none' : 'block';
+  grid.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => openRecipe(c.dataset.id)));
+}
+searchBox.addEventListener('input', () => renderList(searchBox.value));
+
+// ---------- Recipe view ----------
+const listView = document.getElementById('listView');
+const recipeView = document.getElementById('recipeView');
+
+function openRecipe(id) {
+  const r = RECIPES.find(x => x.id === id);
+  if (!r) return;
+  recipeView.innerHTML =
+    '<button class="backbtn" type="button" id="backBtn">← All recipes</button>' +
+    '<h2>' + r.title + '</h2>' +
+    '<p class="meta">' + r.meta + '</p>' +
+    '<button class="wakebig" type="button" data-wake-toggle>☀️ Keep screen awake while I cook: OFF</button>' +
+    '<h3>Ingredients</h3><ul>' + r.ingredients.map(i => '<li>' + i + '</li>').join('') + '</ul>' +
+    '<h3>Directions</h3><ol>' + r.steps.map(s => '<li>' + s + '</li>').join('') + '</ol>' +
+    (r.notes && r.notes.length ? '<h3>Notes</h3><ul>' + r.notes.map(n => '<li>' + n + '</li>').join('') + '</ul>' : '') +
+    (r.source ? '<p class="source">Source: ' + (r.sourceUrl ? '<a href="' + r.sourceUrl + '">' + r.source + '</a>' : r.source) + '</p>' : '');
+  listView.style.display = 'none';
+  recipeView.style.display = 'block';
+  document.getElementById('backBtn').addEventListener('click', closeRecipe);
+  recipeView.querySelector('[data-wake-toggle]').addEventListener('click', toggleWake);
+  syncWakeButtons();
+  window.scrollTo(0, 0);
+  location.hash = r.id;
+}
+function closeRecipe() {
+  recipeView.style.display = 'none';
+  listView.style.display = 'block';
+  history.replaceState(null, '', location.pathname);
+  window.scrollTo(0, 0);
+}
+
+// ---------- Keep screen awake (Wake Lock) ----------
+let wakeLock = null;
+let wakeWanted = false;
+const wakeNote = document.getElementById('wakeNote');
+
+function syncWakeButtons() {
+  const label = wakeWanted ? '☀️ Keep screen awake: ON' : '☀️ Keep screen awake: OFF';
+  document.querySelectorAll('#wakeBtn, [data-wake-toggle]').forEach(b => {
+    b.textContent = b.id === 'wakeBtn' ? label : '☀️ Keep screen awake while I cook: ' + (wakeWanted ? 'ON' : 'OFF');
+    b.classList.toggle('on', wakeWanted);
+    b.setAttribute('aria-pressed', wakeWanted ? 'true' : 'false');
+  });
+}
+async function requestWake() {
+  if (!('wakeLock' in navigator)) {
+    wakeNote.textContent = 'This browser does not support keep-awake. On iPhone, it works in Safari iOS 16.4 or newer.';
+    return;
+  }
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeNote.textContent = 'Screen will stay awake until you turn this off.';
+    wakeLock.addEventListener('release', () => { if (wakeWanted) requestWake(); });
+  } catch (e) {
+    wakeNote.textContent = 'Could not keep the screen awake: ' + e.message;
+  }
+}
+async function toggleWake() {
+  wakeWanted = !wakeWanted;
+  if (wakeWanted) { await requestWake(); }
+  else { if (wakeLock) { await wakeLock.release(); wakeLock = null; } wakeNote.textContent = ''; }
+  syncWakeButtons();
+}
+document.getElementById('wakeBtn').addEventListener('click', toggleWake);
+document.addEventListener('visibilitychange', () => { if (wakeWanted && document.visibilityState === 'visible') requestWake(); });
+
+// ---------- Start ----------
+renderList('');
+if (location.hash) {
+  const id = location.hash.slice(1);
+  if (RECIPES.some(r => r.id === id)) openRecipe(id);
+}
+</script>
+</body>
+</html>
