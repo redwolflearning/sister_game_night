@@ -119,6 +119,10 @@
   <!-- GAME -->
   <section id="gameScreen" class="hidden">
     <div id="turnBanner" class="turnBanner"></div>
+    <div id="notifBar" style="text-align:center;margin-bottom:12px">
+      <button id="notifBtn" class="secondary">Enable turn notifications</button>
+      <span id="notifHint" style="font-size:14px"></span>
+    </div>
     <div class="gameLayout">
       <div class="mainCol">
         <div class="card" id="boardCard">
@@ -335,6 +339,54 @@ function playTurnChime(){
     }
   } catch(e){ /* audio is a nicety; any failure stays silent */ }
 }
+/* ============ Turn notifications (only when you're on another tab) ============ */
+function notifSupported(){ return "Notification" in window; }
+function updateNotifUI(){
+  try {
+    var btn = $("notifBtn"), hint = $("notifHint"), bar = $("notifBar");
+    if (!btn) return;
+    if (!notifSupported()){
+      if (bar) bar.classList.add("hidden");
+      return;
+    }
+    var perm = Notification.permission;
+    if (perm === "granted"){
+      btn.classList.add("hidden");
+      if (hint) hint.textContent = "Turn notifications on ✓";
+    } else if (perm === "denied"){
+      btn.classList.add("hidden");
+      if (hint) hint.textContent = "Turn notifications are blocked — to get turn alerts, allow notifications for this site in your browser settings.";
+    } else {
+      btn.classList.remove("hidden");
+      btn.textContent = "Enable turn notifications";
+      if (hint) hint.textContent = "Get a pop-up when it's your turn, even if you're on another tab.";
+    }
+  } catch(e){ /* notifications are a nicety; never break the game over them */ }
+}
+function requestNotifPermission(){
+  if (!notifSupported()){ updateNotifUI(); return; }
+  try {
+    var p = Notification.requestPermission(function(){ updateNotifUI(); });
+    if (p && typeof p.then === "function") p.then(function(){ updateNotifUI(); }, function(){ updateNotifUI(); });
+  } catch(e){}
+  setTimeout(updateNotifUI, 500);
+}
+function fireTurnNotification(){
+  try {
+    if (!notifSupported()) return;
+    if (Notification.permission !== "granted") return;
+    var away = (document.hidden === true) || !document.hasFocus();
+    if (!away) return; // already looking at the game: banner + chime cover it
+    var n = new Notification("It's your turn!", {
+      body: "Sister Tiles: it's your turn to play a tile.",
+      tag: "sister-tiles-turn"
+    });
+    n.onclick = function(){
+      try { window.focus(); } catch(e){}
+      try { n.close(); } catch(e){}
+    };
+  } catch(e){ /* any notification failure stays silent */ }
+}
 function announceTurnIfNeeded(){
   var mine = !!(pub && pub.started && !pub.finished && isMyTurn());
   var banner = $("turnBanner");
@@ -342,6 +394,7 @@ function announceTurnIfNeeded(){
   document.title = mine ? "Your turn! — Sister Tiles" : "Sister Tiles";
   if (mine && !wasMyTurn){
     playTurnChime();
+    fireTurnNotification();
     try { if (navigator.vibrate) navigator.vibrate(200); } catch(e){}
     if (banner){
       banner.classList.remove("turnPulse");
@@ -605,6 +658,7 @@ function renderGame(){
   $("undoBtn").disabled = !mine;
   $("swapToggleBtn").disabled = !mine;
   $("swapBtn").disabled = !mine;
+  updateNotifUI();
   announceTurnIfNeeded();
 }
 function renderBoard(){
@@ -723,6 +777,8 @@ $("swapToggleBtn").addEventListener("click", function(){
   renderHand();
 });
 $("swapBtn").addEventListener("click", doSwap);
+$("notifBtn").addEventListener("click", requestNotifPermission);
+updateNotifUI();
 $("chatSendBtn").addEventListener("click", sendChat);
 $("chatInput").addEventListener("keydown", function(e){ if (e.key === "Enter") sendChat(); });
 window.addEventListener("beforeunload", function(){ if (peer) try { peer.destroy(); } catch(e){} });
