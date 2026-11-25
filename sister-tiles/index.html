@@ -12,7 +12,7 @@
   header{background:var(--accent);color:#fff;padding:14px 18px;text-align:center}
   header h1{margin:0;font-size:30px;letter-spacing:.5px}
   header p{margin:4px 0 0;font-size:14px;opacity:.92}
-  main{max-width:1060px;margin:0 auto;padding:16px}
+  main{max-width:1560px;margin:0 auto;padding:12px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 8px rgba(90,60,20,.08)}
   .row{display:flex;gap:14px;flex-wrap:wrap}
   .col{flex:1 1 300px}
@@ -29,13 +29,13 @@
   .hidden{display:none !important}
   /* Board */
   #boardWrap{overflow:auto;padding:8px;background:#f3ead9;border-radius:12px;border:1px solid var(--line)}
-  #board{display:grid;gap:4px;width:max-content;margin:0 auto}
-  .cell{width:46px;height:46px;border-radius:8px;background:rgba(255,255,255,.55);border:1px dashed #d8c8ab;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  #board{--cell:46px;display:grid;gap:4px;width:max-content;margin:0 auto}
+  .cell{width:var(--cell,46px);height:var(--cell,46px);border-radius:calc(var(--cell,46px)*.17);background:rgba(255,255,255,.55);border:1px dashed #d8c8ab;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;overflow:hidden}
   .cell.filled{background:#fff;border:1px solid var(--line);cursor:default}
   .cell.staged{background:#fff8d6;border:2px solid #f9a825;cursor:pointer}
-  .cell.start{background:#e8f3e8;border:1px dashed var(--accent2);font-size:11px;color:var(--accent2);text-align:center}
+  .cell.start{background:#e8f3e8;border:1px dashed var(--accent2);font-size:calc(var(--cell,46px)*.24);color:var(--accent2);text-align:center}
   .tile{width:42px;height:42px;border-radius:8px;background:#fffdf7;border:2px solid #d9c9a8;display:flex;align-items:center;justify-content:center;font-size:27px;line-height:1;user-select:none}
-  .cell .tile{width:42px;height:42px;border:0;background:transparent}
+  .cell .tile{width:var(--cell,46px);height:var(--cell,46px);border:0;background:transparent;font-size:calc(var(--cell,46px)*.58)}
   /* Hand */
   #hand{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
   .handTile{padding:0;background:transparent;border:0;cursor:pointer;border-radius:10px}
@@ -80,7 +80,7 @@
     .sideCol{position:static;max-height:none;overflow:visible}
     #boardCard{order:1} #handCard{order:2} #chatCard{order:3} #scoresCard{order:4} #logCard{order:5}
   }
-  @media (max-width:600px){ .cell{width:40px;height:40px} .cell .tile{width:38px;height:38px;font-size:23px} header h1{font-size:25px} }
+  @media (max-width:600px){ #board{--cell:40px} header h1{font-size:25px} }
 </style>
 </head>
 <body>
@@ -142,6 +142,7 @@
       <div class="mainCol">
         <div class="card" id="boardCard">
           <h2>Board</h2>
+          <div style="margin-bottom:8px"><button id="fitBtn" class="secondary">Fit board: Off</button> <span style="font-size:13px">Shrinks the tiles so the whole board fits without scrolling.</span></div>
           <div id="boardWrap"><div id="board"></div></div>
           <p style="font-size:14px">Tap one of your tiles below, then tap a board square to place it. Tap a yellow staged tile to take it back.</p>
         </div>
@@ -326,6 +327,12 @@ var pub = null;                   // latest public state
 var myHand = [];                  // only ever MY tiles
 var staged = {};                  // tileId -> {x, y, tile}
 var selectedTileId = null;
+var fitBoard = false;             // "Fit board" toggle: shrink cells so the whole board fits the wrapper width
+try { fitBoard = (localStorage.getItem("sisterTilesFit") === "1"); } catch(e){}
+function updateFitBtn(){
+  var b = $("fitBtn");
+  if (b) b.textContent = fitBoard ? "Fit board: On" : "Fit board: Off";
+}
 var swapMode = false, swapSelected = {};
 
 function isMyTurn(){ return pub && pub.started && !pub.finished && pub.turnPlayerId === myId; }
@@ -697,6 +704,21 @@ function renderBoard(){
   var cols = maxX - minX + 1;
   var boardEl = $("board");
   boardEl.style.gridTemplateColumns = "repeat(" + cols + ", auto)";
+  // Fit board: size cells from the wrapper's available width (width is the only constraint).
+  if (fitBoard){
+    var wrap = $("boardWrap");
+    var wrapW = wrap ? wrap.clientWidth : 0;
+    var cell = 46;
+    if (wrapW > 0){
+      var avail = wrapW - 16 - (cols - 1) * 4; // 16 = wrapper horizontal padding (8px each side); 4 = grid gap
+      cell = Math.floor(avail / cols);
+      if (cell > 46) cell = 46;
+      if (cell < 16) cell = 16;
+    }
+    boardEl.style.setProperty("--cell", cell + "px");
+  } else {
+    boardEl.style.removeProperty("--cell");
+  }
   var html = "";
   for (var y = minY; y <= maxY; y++){
     for (var x = minX; x <= maxX; x++){
@@ -825,6 +847,14 @@ $("chatEmojiBtn").addEventListener("click", function(){ $("emojiPanel").classLis
 buildEmojiPanel();
 $("chatSendBtn").addEventListener("click", sendChat);
 $("chatInput").addEventListener("keydown", function(e){ if (e.key === "Enter") sendChat(); });
+$("fitBtn").addEventListener("click", function(){
+  fitBoard = !fitBoard;
+  try { localStorage.setItem("sisterTilesFit", fitBoard ? "1" : "0"); } catch(e){}
+  updateFitBtn();
+  if (pub) renderBoard();
+});
+updateFitBtn();
+window.addEventListener("resize", function(){ if (fitBoard && pub && pub.started) renderBoard(); });
 window.addEventListener("beforeunload", function(){ if (peer) try { peer.destroy(); } catch(e){} });
 </script>
 </body>
