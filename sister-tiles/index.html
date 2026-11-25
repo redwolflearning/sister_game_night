@@ -45,8 +45,23 @@
   .score{display:flex;gap:8px;flex-wrap:wrap}
   .scoreBox{background:#efe6d8;border-radius:9px;padding:8px 12px;font-size:15px}
   .scoreBox.turn{outline:3px solid var(--accent2);font-weight:bold}
-  #log,#chatLog{max-height:190px;overflow:auto;font-size:14px;background:#fbf6ec;border:1px solid var(--line);border-radius:9px;padding:9px 12px}
-  #log div,#chatLog div{margin:3px 0}
+  #log{max-height:190px;overflow:auto;font-size:14px;background:#fbf6ec;border:1px solid var(--line);border-radius:9px;padding:9px 12px}
+  #log div{margin:3px 0}
+  /* Chat: iMessage-style bubbles */
+  #chatLog{max-height:260px;overflow:auto;background:#fbf6ec;border:1px solid var(--line);border-radius:9px;padding:9px 10px;display:flex;flex-direction:column;gap:6px}
+  .chatRow{display:flex;flex-direction:column}
+  .chatRow.mine{align-items:flex-end}
+  .chatRow.theirs{align-items:flex-start}
+  .chatName{font-size:11px;color:#8a7a63;margin:0 4px 2px}
+  .bubble{max-width:80%;padding:8px 12px;border-radius:16px;font-size:15px;line-height:1.35;word-break:break-word;white-space:pre-wrap}
+  .bubble.mine{background:#1565c0;color:#fff;border-bottom-right-radius:4px}
+  .bubble.theirs{background:#e9e2d4;color:var(--ink);border-bottom-left-radius:4px}
+  .chatPlain{font-size:14px}
+  #chatEmojiBtn{background:#efe6d8;border:1px solid var(--line);font-size:17px;padding:9px 11px}
+  #emojiPanel{display:none;flex-wrap:wrap;gap:2px;background:#fff;border:1px solid var(--line);border-radius:9px;padding:6px;margin-top:8px}
+  #emojiPanel.open{display:flex}
+  #emojiPanel button{background:transparent;border:0;font-size:21px;padding:4px 5px;margin:0;cursor:pointer;border-radius:7px}
+  #emojiPanel button:hover{background:#efe6d8}
   .turnBanner{font-size:19px;font-weight:bold;text-align:center;padding:9px;border-radius:9px;background:#e8f3e8;margin-bottom:10px}
   .turnBanner.wait{background:#efe6d8}
   /* Your-turn announcement (banner state toggled by announceTurnIfNeeded) */
@@ -150,8 +165,10 @@
         <div class="card" id="chatCard">
           <h3>Chat</h3>
           <div id="chatLog"></div>
+          <div id="emojiPanel" aria-label="Emoji picker"></div>
           <div class="row" style="margin-top:8px">
             <input type="text" id="chatInput" maxlength="300" placeholder="Say something…" style="flex:1">
+            <button id="chatEmojiBtn" type="button" title="Add an emoji">😀</button>
             <button id="chatSendBtn">Send</button>
           </div>
         </div>
@@ -503,7 +520,7 @@ function hostDoSwap(playerId, tileIds){
 function hostDoChat(playerId, text){
   var name = playerId;
   G.players.forEach(function(pl){ if (pl.id === playerId) name = pl.name; });
-  G.chat.push(name + ": " + text);
+  G.chat.push({ pid: playerId, name: name, text: text });
   hostBroadcast();
 }
 
@@ -651,7 +668,12 @@ function renderGame(){
   renderHand();
   $("log").innerHTML = pub.log.map(function(l){ return "<div>" + escapeHtml(l) + "</div>"; }).join("");
   $("log").scrollTop = $("log").scrollHeight;
-  $("chatLog").innerHTML = pub.chat.map(function(l){ return "<div>" + escapeHtml(l) + "</div>"; }).join("");
+  $("chatLog").innerHTML = pub.chat.map(function(msg){
+    if (typeof msg === "string") return '<div class="chatRow theirs"><div class="chatPlain">' + escapeHtml(msg) + "</div></div>";
+    var mineMsg = msg.pid === myId;
+    var nameHtml = mineMsg ? "" : '<div class="chatName">' + escapeHtml(msg.name || "") + "</div>";
+    return '<div class="chatRow ' + (mineMsg ? "mine" : "theirs") + '">' + nameHtml + '<div class="bubble ' + (mineMsg ? "mine" : "theirs") + '">' + escapeHtml(msg.text || "") + "</div></div>";
+  }).join("");
   $("chatLog").scrollTop = $("chatLog").scrollHeight;
   var mine = isMyTurn();
   $("endTurnBtn").disabled = !mine;
@@ -765,6 +787,26 @@ function sendChat(){
   if (isHost || pub){ sendOrHost({ type: "chat", text: text }); }
 }
 
+/* ============ Emoji picker ============ */
+var EMOJIS = ["😀","😄","😂","🤣","😊","🙂","😉","😍","😘","😜","🤗","😎","😴","🤔","😮","😢","👍","👎","👏","🙏","🤞","✌️","❤️","💜","⭐","🌟","🎉","🏆","🍀","🌸"];
+function buildEmojiPanel(){
+  var panel = $("emojiPanel");
+  panel.innerHTML = EMOJIS.map(function(e){ return '<button type="button">' + e + "</button>"; }).join("");
+  Array.prototype.forEach.call(panel.querySelectorAll("button"), function(btn){
+    btn.addEventListener("click", function(){ insertEmoji(btn.textContent); });
+  });
+}
+function insertEmoji(e){
+  var inp = $("chatInput");
+  var start = (typeof inp.selectionStart === "number") ? inp.selectionStart : inp.value.length;
+  var end = (typeof inp.selectionEnd === "number") ? inp.selectionEnd : inp.value.length;
+  inp.value = inp.value.slice(0, start) + e + inp.value.slice(end);
+  var pos = start + e.length;
+  inp.focus();
+  try { inp.setSelectionRange(pos, pos); } catch(err){}
+  $("emojiPanel").classList.remove("open");
+}
+
 /* ============ Wire up buttons ============ */
 $("createBtn").addEventListener("click", createRoom);
 $("joinBtn").addEventListener("click", joinRoom);
@@ -779,6 +821,8 @@ $("swapToggleBtn").addEventListener("click", function(){
 $("swapBtn").addEventListener("click", doSwap);
 $("notifBtn").addEventListener("click", requestNotifPermission);
 updateNotifUI();
+$("chatEmojiBtn").addEventListener("click", function(){ $("emojiPanel").classList.toggle("open"); $("chatInput").focus(); });
+buildEmojiPanel();
 $("chatSendBtn").addEventListener("click", sendChat);
 $("chatInput").addEventListener("keydown", function(e){ if (e.key === "Enter") sendChat(); });
 window.addEventListener("beforeunload", function(){ if (peer) try { peer.destroy(); } catch(e){} });
